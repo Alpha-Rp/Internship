@@ -1,61 +1,125 @@
-# Amazon Advertising Campaign Analysis
+# Amazon Ad Campaign Analysis Dashboard
 
-This project provides tools for analyzing Amazon advertising campaign performance data and generating actionable insights for optimization.
+A comprehensive analytics dashboard for Amazon advertising campaigns, providing insights into campaign performance, product metrics, and optimization opportunities.
+
+## Features
+
+### 1. Campaign Performance Analysis
+
+- Total spend and sales tracking
+- Campaign-level performance metrics
+- ROAS and ACOS analysis
+- Click-through and conversion rates
+
+### 2. Product Performance Insights
+
+- Product-level performance metrics
+- Sales and spend analysis by ASIN
+- Performance categorization (Over-performing, Moderate, Under-performing)
+- ROI analysis for each product
+
+### 3. Search Term Analysis
+
+- Search term performance tracking
+- Impression share analysis
+- Search term ranking insights
+- Conversion optimization opportunities
+
+### 4. Trend Analysis
+
+- Daily performance trends
+- Hourly performance patterns
+- ROAS and conversion rate tracking
+- Spend and sales trends
+
+### 5. Interactive Visualizations
+
+- Campaign Spend vs Sales comparison
+- Product Performance scatter plots
+- Daily Trends line charts
+- Search Term Performance analysis
 
 ## Project Structure
 
 ```
 amazon-ad-analysis/
-├── data/
-│   ├── mappings/           # Contains MSKU to SKU mapping files
-│   ├── campaign_reports/   # Campaign performance reports
-│   ├── search_terms/      # Search term performance data
-│   └── products/          # Product-level performance data
-├── src/                   # Source code
-├── notebooks/            # Jupyter notebooks for analysis
-├── reports/             # Generated reports and dashboards
-└── venv/                # Python virtual environment
+├── data/                    # Data files directory
+│   ├── campaign_reports/    # Campaign performance data
+│   ├── search_terms/       # Search term data
+│   ├── products/          # Product performance data
+│   └── mappings/          # SKU and campaign mappings
+├── reports/                # Generated reports and charts
+├── src/                    # Source code
+│   ├── app.py             # Streamlit dashboard application
+│   └── analyze_campaigns.py # Core analysis functionality
+├── notebooks/             # Jupyter notebooks for analysis
+├── requirements.txt       # Project dependencies
+└── README.md             # Project documentation
 ```
 
-## Setup
+## How to Run the Application
 
-1. Create and activate a virtual environment:
+### Prerequisites
+
+1. Python 3.8 or higher installed on your system
+2. Git (for cloning the repository)
+
+### Step-by-Step Setup
+
+1. **Clone the Repository**
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+git clone https://github.com/yourusername/amazon-ad-analysis.git
+cd amazon-ad-analysis
 ```
 
-2. Install dependencies:
+2. **Set Up Virtual Environment**
+
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+```
+
+3. **Install Dependencies**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Data Requirements
+4. **Prepare Data Files**
+   Make sure you have the following files in their respective directories:
 
-The following data files are required:
+- `data/campaign_reports/Sponsored_Products_Campaign_report_-_01-02_-15-03.xlsx`
+- `data/campaign_reports/Sponsored_Products_Campaign_report-_hourly_(18th_to_2nd_march).csv`
+- `data/search_terms/Sponsored_Products_Search_Term_Impression_Share_report - summary.csv`
+- `data/search_terms/Sponsored_Products_Search_Term_Impression_Share_report_-Daily.csv`
+- `data/products/Sponsored_Products_Advertised_product_report - SUMMARY.xlsx`
+- `data/mappings/MSKUS_to_SKU_Amazon.xlsx`
 
-1. Campaign Reports:
+5. **Run the Application**
 
-   - `Sponsored_Products_Campaign_report_-_01-02_-15-03.xlsx`
-   - `Sponsored_Products_Campaign_report-_hourly_(18th_to_2nd_march).csv`
+There are two ways to use the application:
 
-2. Search Term Reports:
+#### Option 1: Run the Interactive Dashboard
 
-   - `Sponsored_Products_Search_Term_Impression_Share_report - summary.csv`
-   - `Sponsored_Products_Search_Term_Impression_Share_report_-Daily.csv`
+```bash
+streamlit run src/app.py
+```
 
-3. Product Reports:
+This will:
 
-   - `Sponsored_Products_Advertised_product_report - SUMMARY.xlsx`
+- Start the Streamlit dashboard
+- Open your default web browser to `http://localhost:8501`
+- Show interactive visualizations and metrics
+- Allow you to generate Excel reports from the dashboard
 
-4. Mapping Files:
-   - `MSKUS_to_SKU_Amazon.xlsx` (in the mappings directory)
-
-## Usage
-
-1. Run the analysis script:
+#### Option 2: Generate Excel Report Only
 
 ```bash
 python src/analyze_campaigns.py
@@ -63,61 +127,147 @@ python src/analyze_campaigns.py
 
 This will:
 
-- Load and process all data files
-- Generate a comprehensive report
-- Export results to Excel for dashboard creation
+- Process all data files
+- Generate a comprehensive Excel report
+- Save the report in the `reports` directory with timestamp
 
-2. The generated Excel file (`reports/campaign_analysis.xlsx`) contains:
-   - Campaign Performance sheet
-   - Product Performance sheet
-   - Search Term Performance sheet
-   - Daily Trends sheet
+### Using the Dashboard
 
-## Analysis Features
+1. **Access the Dashboard**
 
-1. Campaign Performance Analysis:
+   - Open your web browser
+   - Navigate to `http://localhost:8501`
+   - The dashboard will load automatically
 
-   - Total spend, impressions, clicks, and sales
-   - ROAS and ACOS metrics
-   - Performance by SKU
+2. **Navigate Through Tabs**
 
-2. Product-Level Analysis:
+   - Summary: Overview of key metrics
+   - Campaign Performance: Detailed campaign analysis
+   - Product Analysis: Product-level insights
+   - Search Term Analysis: Search term performance
 
-   - Performance metrics by ASIN
-   - Identification of over/under-performing products
-   - ROAS calculation
+3. **Generate Reports**
+   - Click the "Generate Excel Report" button in the sidebar
+   - Wait for the report to generate
+   - Download the report when ready
 
-3. Search Term Analysis:
+### Troubleshooting
 
-   - Impression share and rank
-   - Click and order metrics
+If you encounter any issues:
+
+1. **Data Loading Errors**
+
+   - Verify all required data files are in the correct directories
+   - Check file names match exactly
+   - Ensure files are not corrupted
+
+2. **Dependency Issues**
+
+   - Make sure all requirements are installed correctly
+   - Try reinstalling requirements: `pip install -r requirements.txt --upgrade`
+
+3. **Dashboard Not Loading**
+
+   - Check if port 8501 is available
+   - Try running with a different port: `streamlit run src/app.py --server.port 8502`
+
+4. **Report Generation Issues**
+   - Ensure Excel is not open when generating reports
+   - Check write permissions in the reports directory
+   - Verify sufficient disk space
+
+## Data Requirements
+
+The dashboard expects the following data files:
+
+1. Campaign Reports:
+
+   - `Sponsored_Products_Campaign_report_-_01-02_-15-03.xlsx`
+   - `Sponsored_Products_Campaign_report-_hourly_(18th_to_2nd_march).csv`
+
+2. Search Term Data:
+
+   - `Sponsored_Products_Search_Term_Impression_Share_report - summary.csv`
+   - `Sponsored_Products_Search_Term_Impression_Share_report_-Daily.csv`
+
+3. Product Data:
+
+   - `Sponsored_Products_Advertised_product_report - SUMMARY.xlsx`
+
+4. Mappings:
+   - `MSKUS_to_SKU_Amazon.xlsx`
+
+## Features in Detail
+
+### Dashboard Interface
+
+- Interactive metrics display
+- Real-time data visualization
+- Customizable date ranges
+- Export functionality for reports
+
+### Analysis Components
+
+1. **Campaign Overview**
+
+   - Total spend and sales
+   - Key performance indicators
+   - Campaign-level insights
+
+2. **Product Analysis**
+
+   - Performance by ASIN
+   - Sales and spend metrics
+   - ROI analysis
+
+3. **Search Term Analysis**
+
+   - Impression share tracking
+   - Search term performance
    - Optimization opportunities
 
-4. Trend Analysis:
-   - Daily performance metrics
-   - ROAS trends
-   - Spend and sales patterns
+4. **Trend Analysis**
+   - Daily performance tracking
+   - Hourly patterns
+   - Performance trends
 
-## Dashboard Creation
+### Report Generation
 
-The exported Excel file can be used to create a dashboard using:
+- Comprehensive Excel reports
+- Interactive charts
+- Detailed metrics and insights
+- Professional formatting
 
-- Excel PivotTables and Charts
-- Power BI
-- Google Sheets
+## Dependencies
 
-Recommended dashboard components:
-
-1. Campaign Performance Overview
-2. Product Performance Analysis
-3. Search Term Optimization Opportunities
-4. Daily Performance Trends
-
-## Output Files
-
-1. `campaign_analysis.xlsx`: Contains all analysis results in separate sheets
-2. Console output: Summary of key metrics and insights
+- Python 3.8+
+- pandas
+- numpy
+- plotly
+- streamlit
+- xlsxwriter
+- openpyxl
+- seaborn
+- matplotlib
 
 ## Contributing
 
-Feel free to submit issues and enhancement requests!
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support, please open an issue in the GitHub repository or contact the maintainers.
+
+## Acknowledgments
+
+- Amazon Advertising API
+- Streamlit team for the dashboard framework
+- Contributors and maintainers

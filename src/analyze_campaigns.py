@@ -203,20 +203,104 @@ class CampaignAnalyzer:
         return top_terms
     
     def analyze_product_performance(self):
-        """Analyze product-level performance"""
+        """Analyze product-level performance and identify opportunities"""
+        if self.product_data is None:
+            raise ValueError("Product data not loaded. Please run load_data() first.")
+            
+        # Calculate product metrics
         product_metrics = self.product_data.groupby('Advertised ASIN').agg({
             'Spend': 'sum',
-            '7 Day Total Sales (₹)': 'sum',
             'Impressions': 'sum',
             'Clicks': 'sum',
-            '7 Day Total Orders (#)': 'sum'
-        }).reset_index()
+            '7 Day Total Sales (₹)': 'sum'
+        }).round(2)
         
-        product_metrics['roi'] = (product_metrics['7 Day Total Sales (₹)'] - product_metrics['Spend']) / product_metrics['Spend']
-        product_metrics['acos'] = product_metrics['Spend'] / product_metrics['7 Day Total Sales (₹)']
+        # Calculate ROAS for each product
+        product_metrics['ROAS'] = (product_metrics['7 Day Total Sales (₹)'] / product_metrics['Spend']).round(2)
+        
+        # Identify over-performing and under-performing products
+        product_metrics['Performance'] = pd.cut(
+            product_metrics['ROAS'],
+            bins=[-np.inf, 1, 2, np.inf],
+            labels=['Under-performing', 'Moderate', 'Over-performing']
+        )
+        
+        # Reset index to make Advertised ASIN a column
+        product_metrics = product_metrics.reset_index()
         
         return product_metrics
     
+    def analyze_search_term_performance(self):
+        """Analyze search term performance and identify optimization opportunities"""
+        if self.search_terms is None:
+            raise ValueError("Search term data not loaded. Please run load_data() first.")
+            
+        # Calculate search term metrics
+        search_metrics = self.search_terms.groupby('Customer Search Term').agg({
+            'Search Term Impression Share': 'mean',
+            'Search Term Impression Rank': 'mean',
+            'Clicks': 'sum',
+            '7 Day Total Orders (#)': 'sum',
+            '7 Day Total Sales (₹)': 'sum'
+        }).round(2)
+        
+        # Clean up sales column - remove any duplicate currency symbols and convert to numeric
+        search_metrics['7 Day Total Sales (₹)'] = search_metrics['7 Day Total Sales (₹)'].astype(str).str.replace('Rs.', '').str.replace('₹', '').str.replace(',', '')
+        search_metrics['7 Day Total Sales (₹)'] = pd.to_numeric(search_metrics['7 Day Total Sales (₹)'], errors='coerce')
+        
+        # Identify optimization opportunities based on multiple factors
+        search_metrics['Opportunity'] = pd.cut(
+            search_metrics['Search Term Impression Share'],
+            bins=[0, 0.3, 0.7, 1],
+            labels=['Low Share', 'Moderate Share', 'High Share']
+        )
+        
+        # Add opportunity details
+        search_metrics['Opportunity Details'] = ''
+        for idx, row in search_metrics.iterrows():
+            details = []
+            if row['Search Term Impression Share'] < 0.3:
+                details.append('Low impression share')
+            if row['Search Term Impression Rank'] > 3:
+                details.append('Poor ranking')
+            if row['Clicks'] > 0 and row['7 Day Total Sales (₹)'] == 0:
+                details.append('No sales despite clicks')
+            search_metrics.loc[idx, 'Opportunity Details'] = ' | '.join(details) if details else 'No issues'
+        
+        # Reset index to make Customer Search Term a column
+        search_metrics = search_metrics.reset_index()
+        
+        return search_metrics
+
+    def analyze_trends(self):
+        """Analyze performance trends over time"""
+        if self.hourly_data is None:
+            raise ValueError("Hourly data not loaded. Please run load_data() first.")
+            
+        # Convert date column to datetime and extract only the date part
+        self.hourly_data['Start Date'] = pd.to_datetime(self.hourly_data['Start Date']).dt.date
+        
+        # Calculate daily metrics
+        daily_metrics = self.hourly_data.groupby('Start Date').agg({
+            'Spend': 'sum',
+            'Impressions': 'sum',
+            'Clicks': 'sum',
+            '7 Day Total Sales (₹)': 'sum',
+            '7 Day Total Orders (#)': 'sum'
+        }).round(2)
+        
+        # Calculate daily ROAS and conversion rate
+        daily_metrics['ROAS'] = (daily_metrics['7 Day Total Sales (₹)'] / daily_metrics['Spend']).round(2)
+        daily_metrics['Conversion Rate'] = (daily_metrics['7 Day Total Orders (#)'] / daily_metrics['Clicks']).round(3)
+        
+        # Sort by date
+        daily_metrics = daily_metrics.sort_values('Start Date')
+        
+        # Reset index to make Start Date a column
+        daily_metrics = daily_metrics.reset_index()
+        
+        return daily_metrics
+
     def generate_insights(self):
         """Generate insights and recommendations"""
         insights = {
@@ -262,101 +346,19 @@ class CampaignAnalyzer:
             'total_impressions': self.campaign_data['Impressions'].sum(),
             'total_clicks': self.campaign_data['Clicks'].sum(),
             'total_sales': self.campaign_data['7 Day Total Sales (₹)'].sum(),
+            'total_orders': self.campaign_data['7 Day Total Orders (#)'].sum(),
             'average_roas': self.campaign_data['Total Return on Advertising Spend (ROAS)'].mean(),
             'average_acos': self.campaign_data['Total Advertising Cost of Sales (ACOS) '].mean(),
-            'average_ctr': self.campaign_data['Click-Thru Rate (CTR)'].mean()
+            'average_ctr': self.campaign_data['Click-Thru Rate (CTR)'].mean(),
+            'average_conversion_rate': (self.campaign_data['7 Day Total Orders (#)'].sum() / self.campaign_data['Clicks'].sum())
         }
         
-        # Campaign performance by SKU
-        sku_performance = self.campaign_data.groupby('SKU').agg({
-            'Spend': 'sum',
-            'Impressions': 'sum',
-            'Clicks': 'sum',
-            '7 Day Total Sales (₹)': 'sum',
-            'Total Return on Advertising Spend (ROAS)': 'mean',
-            'Total Advertising Cost of Sales (ACOS) ': 'mean'
-        }).round(2)
-        
-        return metrics, sku_performance
-
-    def analyze_product_performance(self):
-        """Analyze product-level performance and identify opportunities"""
-        if self.product_data is None:
-            raise ValueError("Product data not loaded. Please run load_data() first.")
-            
-        # Calculate product metrics
-        product_metrics = self.product_data.groupby('Advertised ASIN').agg({
-            'Spend': 'sum',
-            'Impressions': 'sum',
-            'Clicks': 'sum',
-            '7 Day Total Sales (₹)': 'sum'
-        }).round(2)
-        
-        # Calculate ROAS for each product
-        product_metrics['ROAS'] = (product_metrics['7 Day Total Sales (₹)'] / product_metrics['Spend']).round(2)
-        
-        # Identify over-performing and under-performing products
-        product_metrics['Performance'] = pd.cut(
-            product_metrics['ROAS'],
-            bins=[-np.inf, 1, 2, np.inf],
-            labels=['Under-performing', 'Moderate', 'Over-performing']
-        )
-        
-        return product_metrics
-
-    def analyze_search_term_performance(self):
-        """Analyze search term performance and identify optimization opportunities"""
-        if self.search_terms is None:
-            raise ValueError("Search term data not loaded. Please run load_data() first.")
-            
-        # Calculate search term metrics
-        search_metrics = self.search_terms.groupby('Customer Search Term').agg({
-            'Search Term Impression Share': 'mean',
-            'Search Term Impression Rank': 'mean',
-            'Clicks': 'sum',
-            '7 Day Total Orders (#)': 'sum',
-            '7 Day Total Sales (₹)': 'sum'
-        }).round(2)
-        
-        # Identify optimization opportunities
-        search_metrics['Opportunity'] = pd.cut(
-            search_metrics['Search Term Impression Share'],
-            bins=[0, 0.3, 0.7, 1],
-            labels=['Low Share', 'Moderate Share', 'High Share']
-        )
-        
-        return search_metrics
-
-    def analyze_trends(self):
-        """Analyze performance trends over time"""
-        if self.hourly_data is None:
-            raise ValueError("Hourly data not loaded. Please run load_data() first.")
-            
-        # Convert date column to datetime
-        self.hourly_data['Start Date'] = pd.to_datetime(self.hourly_data['Start Date'])
-        
-        # Calculate daily metrics
-        daily_metrics = self.hourly_data.groupby('Start Date').agg({
-            'Spend': 'sum',
-            'Impressions': 'sum',
-            'Clicks': 'sum',
-            '7 Day Total Sales (₹)': 'sum',
-            '7 Day Total Orders (#)': 'sum'
-        }).round(2)
-        
-        # Calculate daily ROAS and conversion rate
-        daily_metrics['ROAS'] = (daily_metrics['7 Day Total Sales (₹)'] / daily_metrics['Spend']).round(2)
-        daily_metrics['Conversion Rate'] = (daily_metrics['7 Day Total Orders (#)'] / daily_metrics['Clicks']).round(3)
-        
-        # Sort by date
-        daily_metrics = daily_metrics.sort_values('Start Date')
-        
-        return daily_metrics
+        return metrics
 
     def generate_report(self):
         """Generate a comprehensive report with insights and recommendations"""
         # Get all analysis results
-        campaign_metrics, sku_performance = self.analyze_campaign_performance()
+        campaign_metrics = self.analyze_campaign_performance()
         product_metrics = self.analyze_product_performance()
         search_metrics = self.analyze_search_term_performance()
         daily_metrics = self.analyze_trends()
@@ -381,42 +383,453 @@ class CampaignAnalyzer:
         
         return report
 
+    def create_charts(self):
+        """Create visualizations for the analysis"""
+        charts = {}
+        
+        # 1. Campaign Performance Chart (Bar Chart)
+        fig = px.bar(
+            self.campaign_data,
+            x='Campaign Name',
+            y=['Spend', '7 Day Total Sales (₹)'],
+            title="Campaign Spend vs Sales",
+            barmode='group',
+            labels={
+                'Campaign Name': 'Campaign',
+                'value': 'Amount (₹)',
+                'variable': 'Metric'
+            }
+        )
+        fig.update_layout(
+            xaxis_tickangle=-45,
+            height=480,
+            width=720,
+            showlegend=True,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(t=50, b=50, l=50, r=50)
+        )
+        charts['campaign_performance'] = fig
+        
+        # 2. Product Performance Chart (Scatter Plot)
+        product_metrics = self.analyze_product_performance()
+        fig = px.scatter(
+            product_metrics,
+            x='Spend',
+            y='7 Day Total Sales (₹)',
+            size='Impressions',
+            color='ROAS',
+            hover_data=['Advertised ASIN', 'Clicks', '7 Day Total Orders (#)'],
+            title="Product Performance Analysis",
+            labels={
+                'Spend': 'Total Spend (₹)',
+                '7 Day Total Sales (₹)': 'Total Sales (₹)',
+                'Impressions': 'Number of Impressions',
+                'ROAS': 'ROAS',
+                'Clicks': 'Number of Clicks',
+                '7 Day Total Orders (#)': 'Number of Orders'
+            }
+        )
+        fig.update_layout(
+            height=480,
+            width=720,
+            showlegend=True,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(t=50, b=50, l=50, r=50)
+        )
+        charts['product_performance'] = fig
+        
+        # 3. Daily Trends Chart (Line Chart)
+        daily_metrics = self.analyze_trends()
+        fig = go.Figure()
+        
+        # Add Spend trace
+        fig.add_trace(go.Scatter(
+            x=daily_metrics['Start Date'],
+            y=daily_metrics['Spend'],
+            name='Spend',
+            line=dict(color='#1f77b4', width=2)
+        ))
+        
+        # Add Sales trace
+        fig.add_trace(go.Scatter(
+            x=daily_metrics['Start Date'],
+            y=daily_metrics['7 Day Total Sales (₹)'],
+            name='Sales',
+            line=dict(color='#2ca02c', width=2)
+        ))
+        
+        fig.update_layout(
+            title="Daily Performance Trends",
+            xaxis_title="Date",
+            yaxis_title="Amount (₹)",
+            height=480,
+            width=720,
+            showlegend=True,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(t=50, b=50, l=50, r=50)
+        )
+        charts['daily_trends'] = fig
+        
+        # 4. Search Term Performance Chart (Scatter Plot)
+        search_metrics = self.analyze_search_term_performance()
+        fig = px.scatter(
+            search_metrics,
+            x='Search Term Impression Share',
+            y='7 Day Total Sales (₹)',
+            size='Clicks',
+            color='Search Term Impression Rank',
+            hover_data=['Customer Search Term', 'Clicks', '7 Day Total Orders (#)'],
+            title="Search Term Performance Analysis",
+            labels={
+                'Search Term Impression Share': 'Impression Share',
+                '7 Day Total Sales (₹)': 'Sales (₹)',
+                'Clicks': 'Number of Clicks',
+                'Search Term Impression Rank': 'Rank',
+                '7 Day Total Orders (#)': 'Orders'
+            }
+        )
+        fig.update_layout(
+            height=480,
+            width=720,
+            showlegend=True,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(t=50, b=50, l=50, r=50)
+        )
+        charts['search_term_performance'] = fig
+        
+        return charts
+
     def export_to_excel(self, output_path):
         """Export analysis results to Excel for dashboard creation"""
-        # Create Excel writer
-        with pd.ExcelWriter(output_path) as writer:
-            # Export campaign performance
-            _, sku_performance = self.analyze_campaign_performance()
-            sku_performance.to_excel(writer, sheet_name='Campaign Performance')
-            
-            # Export product performance
-            product_metrics = self.analyze_product_performance()
-            product_metrics.to_excel(writer, sheet_name='Product Performance')
-            
-            # Export search term performance
-            search_metrics = self.analyze_search_term_performance()
-            search_metrics.to_excel(writer, sheet_name='Search Term Performance')
-            
-            # Export daily trends
-            daily_metrics = self.analyze_trends()
-            daily_metrics.to_excel(writer, sheet_name='Daily Trends')
-            
-            # Export hourly performance
-            hourly_metrics = self.analyze_hourly_performance()
-            hourly_metrics.to_excel(writer, sheet_name='Hourly Performance')
-            
-            # Export insights
-            insights = self.generate_insights()
-            insights_df = pd.DataFrame({
-                'Category': ['High Impression, Low Sales', 'Overspending', 'Low Conversion', 'Opportunities'],
-                'Items': [
-                    ', '.join(insights['high_impression_low_sales']),
-                    ', '.join(insights['overspending']),
-                    ', '.join(insights['low_conversion']),
-                    ', '.join(insights['opportunities'])
+        try:
+            # Create Excel writer
+            with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+                # Get the workbook and create formats
+                workbook = writer.book
+                
+                # Define formats
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'bg_color': '#D9E1F2',
+                    'border': 1,
+                    'align': 'center',
+                    'valign': 'vcenter'
+                })
+                
+                currency_format = workbook.add_format({
+                    'num_format': '₹#,##0.00',
+                    'border': 1
+                })
+                
+                number_format = workbook.add_format({
+                    'num_format': '#,##0.00',
+                    'border': 1
+                })
+                
+                percent_format = workbook.add_format({
+                    'num_format': '0.00%',
+                    'border': 1
+                })
+                
+                date_format = workbook.add_format({
+                    'num_format': 'dd/mm/yyyy',
+                    'border': 1
+                })
+                
+                # Create Summary Sheet
+                summary_sheet = workbook.add_worksheet('Summary')
+                
+                # Get campaign metrics
+                metrics = self.analyze_campaign_performance()
+                
+                # Write summary header
+                summary_sheet.merge_range('A1:D1', 'Campaign Performance Summary', header_format)
+                summary_sheet.set_column('A:D', 20)
+                
+                # Write key metrics
+                summary_sheet.write('A3', 'Metric', header_format)
+                summary_sheet.write('B3', 'Value', header_format)
+                
+                metrics_to_show = [
+                    ('Total Spend', metrics['total_spend'], currency_format),
+                    ('Total Sales', metrics['total_sales'], currency_format),
+                    ('Total Impressions', metrics['total_impressions'], number_format),
+                    ('Total Clicks', metrics['total_clicks'], number_format),
+                    ('Total Orders', metrics['total_orders'], number_format),
+                    ('Average ROAS', metrics['average_roas'], number_format),
+                    ('Average ACOS', metrics['average_acos'], percent_format),
+                    ('Average CTR', metrics['average_ctr'], percent_format),
+                    ('Conversion Rate', metrics['average_conversion_rate'], percent_format)
                 ]
-            })
-            insights_df.to_excel(writer, sheet_name='Insights', index=False)
+                
+                for i, (label, value, fmt) in enumerate(metrics_to_show, start=4):
+                    summary_sheet.write(f'A{i}', label, header_format)
+                    summary_sheet.write(f'B{i}', value, fmt)
+                
+                # Add insights section
+                insights = self.generate_insights()
+                summary_sheet.write('A12', 'Key Insights', header_format)
+                summary_sheet.write('A13', 'High Impression, Low Sales Campaigns:', header_format)
+                summary_sheet.write('A14', ', '.join(insights['high_impression_low_sales']))
+                summary_sheet.write('A15', 'Overspending Campaigns:', header_format)
+                summary_sheet.write('A16', ', '.join(insights['overspending']))
+                summary_sheet.write('A17', 'Low Conversion Campaigns:', header_format)
+                summary_sheet.write('A18', ', '.join(insights['low_conversion']))
+                summary_sheet.write('A19', 'Optimization Opportunities:', header_format)
+                summary_sheet.write('A20', ', '.join(insights['opportunities']))
+                
+                # Export campaign performance
+                metrics_df = pd.DataFrame([metrics])
+                metrics_df.to_excel(writer, sheet_name='Campaign Performance', index=False)
+                
+                # Get the worksheet and apply formatting
+                worksheet = writer.sheets['Campaign Performance']
+                for col_num, value in enumerate(metrics_df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    if 'spend' in value.lower() or 'sales' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, currency_format)
+                    elif 'rate' in value.lower() or 'roas' in value.lower() or 'acos' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, percent_format)
+                    else:
+                        worksheet.set_column(col_num, col_num, 15, number_format)
+                
+                # Export product performance
+                product_metrics = self.analyze_product_performance()
+                product_metrics.to_excel(writer, sheet_name='Product Performance', index=False)
+                worksheet = writer.sheets['Product Performance']
+                
+                # Apply formatting to product performance
+                for col_num, value in enumerate(product_metrics.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    if 'spend' in value.lower() or 'sales' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, currency_format)
+                    elif 'rate' in value.lower() or 'roas' in value.lower() or 'acos' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, percent_format)
+                    else:
+                        worksheet.set_column(col_num, col_num, 15, number_format)
+                
+                # Export search term performance
+                search_metrics = self.analyze_search_term_performance()
+                search_metrics.to_excel(writer, sheet_name='Search Term Performance', index=False)
+                worksheet = writer.sheets['Search Term Performance']
+                
+                # Apply formatting to search term performance
+                for col_num, value in enumerate(search_metrics.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    if 'spend' in value.lower() or 'sales' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, currency_format)
+                    elif 'rate' in value.lower() or 'roas' in value.lower() or 'acos' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, percent_format)
+                    else:
+                        worksheet.set_column(col_num, col_num, 15, number_format)
+                
+                # Export daily trends
+                daily_metrics = self.analyze_trends()
+                daily_metrics.to_excel(writer, sheet_name='Daily Trends', index=False)
+                worksheet = writer.sheets['Daily Trends']
+                
+                # Apply formatting to daily trends
+                for col_num, value in enumerate(daily_metrics.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    if value == 'Start Date':
+                        worksheet.set_column(col_num, col_num, 12, date_format)
+                    elif 'spend' in value.lower() or 'sales' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, currency_format)
+                    elif 'rate' in value.lower() or 'roas' in value.lower() or 'acos' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, percent_format)
+                    else:
+                        worksheet.set_column(col_num, col_num, 15, number_format)
+                
+                # Export hourly performance
+                hourly_metrics = self.analyze_hourly_performance()
+                hourly_metrics.to_excel(writer, sheet_name='Hourly Performance', index=False)
+                worksheet = writer.sheets['Hourly Performance']
+                
+                # Apply formatting to hourly performance
+                for col_num, value in enumerate(hourly_metrics.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    if 'spend' in value.lower() or 'sales' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, currency_format)
+                    elif 'rate' in value.lower() or 'roas' in value.lower() or 'acos' in value.lower():
+                        worksheet.set_column(col_num, col_num, 15, percent_format)
+                    else:
+                        worksheet.set_column(col_num, col_num, 15, number_format)
+                
+                # Export insights
+                insights_df = pd.DataFrame({
+                    'Category': ['High Impression, Low Sales', 'Overspending', 'Low Conversion', 'Opportunities'],
+                    'Items': [
+                        ', '.join(insights['high_impression_low_sales']),
+                        ', '.join(insights['overspending']),
+                        ', '.join(insights['low_conversion']),
+                        ', '.join(insights['opportunities'])
+                    ]
+                })
+                insights_df.to_excel(writer, sheet_name='Insights', index=False)
+                worksheet = writer.sheets['Insights']
+                
+                # Apply formatting to insights
+                for col_num, value in enumerate(insights_df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                    worksheet.set_column(col_num, col_num, 50)
+                
+                # Create charts sheet
+                chart_sheet = workbook.add_worksheet('Charts')
+                
+                # Campaign Performance Chart
+                campaign_chart = workbook.add_chart({'type': 'column'})
+                
+                # Add spend series
+                campaign_chart.add_series({
+                    'name': 'Spend',
+                    'categories': ['Campaign Performance', 1, 0, len(self.campaign_data), 0],
+                    'values': ['Campaign Performance', 1, 1, len(self.campaign_data), 1],
+                    'data_labels': {'value': True, 'num_format': '₹#,##0.00'}
+                })
+                
+                # Add sales series
+                campaign_chart.add_series({
+                    'name': 'Sales',
+                    'categories': ['Campaign Performance', 1, 0, len(self.campaign_data), 0],
+                    'values': ['Campaign Performance', 1, 2, len(self.campaign_data), 2],
+                    'data_labels': {'value': True, 'num_format': '₹#,##0.00'}
+                })
+                
+                # Set chart properties
+                campaign_chart.set_title({
+                    'name': 'Campaign Spend vs Sales',
+                    'font': {'size': 14, 'bold': True}
+                })
+                campaign_chart.set_x_axis({
+                    'name': 'Campaign',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_font': {'rotation': -45}
+                })
+                campaign_chart.set_y_axis({
+                    'name': 'Amount (₹)',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': '₹#,##0.00'
+                })
+                campaign_chart.set_legend({'position': 'top'})
+                campaign_chart.set_size({'width': 720, 'height': 480})
+                
+                # Insert the chart
+                chart_sheet.insert_chart('B2', campaign_chart)
+                
+                # Product Performance Chart
+                product_chart = workbook.add_chart({'type': 'scatter'})
+                
+                # Add product performance series
+                product_chart.add_series({
+                    'name': 'Product Performance',
+                    'categories': ['Product Performance', 1, 1, len(product_metrics), 1],  # Spend
+                    'values': ['Product Performance', 1, 3, len(product_metrics), 3],     # Sales
+                    'data_labels': {'value': True, 'num_format': '₹#,##0.00'}
+                })
+                
+                # Set chart properties
+                product_chart.set_title({
+                    'name': 'Product Performance Analysis',
+                    'font': {'size': 14, 'bold': True}
+                })
+                product_chart.set_x_axis({
+                    'name': 'Spend (₹)',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': '₹#,##0.00'
+                })
+                product_chart.set_y_axis({
+                    'name': 'Sales (₹)',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': '₹#,##0.00'
+                })
+                product_chart.set_legend({'position': 'top'})
+                product_chart.set_size({'width': 720, 'height': 480})
+                
+                # Insert the chart
+                chart_sheet.insert_chart('B30', product_chart)
+                
+                # Search Term Performance Chart
+                search_chart = workbook.add_chart({'type': 'scatter'})
+                
+                # Add search term performance series
+                search_chart.add_series({
+                    'name': 'Search Term Performance',
+                    'categories': ['Search Term Performance', 1, 1, len(search_metrics), 1],  # Impression Share
+                    'values': ['Search Term Performance', 1, 4, len(search_metrics), 4],     # Sales
+                    'data_labels': {'value': True, 'num_format': '₹#,##0.00'}
+                })
+                
+                # Set chart properties
+                search_chart.set_title({
+                    'name': 'Search Term Performance Analysis',
+                    'font': {'size': 14, 'bold': True}
+                })
+                search_chart.set_x_axis({
+                    'name': 'Impression Share',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': '0.00%'
+                })
+                search_chart.set_y_axis({
+                    'name': 'Sales (₹)',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': '₹#,##0.00'
+                })
+                search_chart.set_legend({'position': 'top'})
+                search_chart.set_size({'width': 720, 'height': 480})
+                
+                # Insert the chart
+                chart_sheet.insert_chart('B58', search_chart)
+                
+                # Daily Trends Chart
+                trends_chart = workbook.add_chart({'type': 'line'})
+                
+                # Add ROAS series
+                trends_chart.add_series({
+                    'name': 'ROAS',
+                    'categories': ['Daily Trends', 1, 0, len(daily_metrics), 0],
+                    'values': ['Daily Trends', 1, 5, len(daily_metrics), 5],
+                    'data_labels': {'value': True, 'num_format': '0.00'}
+                })
+                
+                # Add conversion rate series
+                trends_chart.add_series({
+                    'name': 'Conversion Rate',
+                    'categories': ['Daily Trends', 1, 0, len(daily_metrics), 0],
+                    'values': ['Daily Trends', 1, 6, len(daily_metrics), 6],
+                    'data_labels': {'value': True, 'num_format': '0.00%'}
+                })
+                
+                # Set chart properties
+                trends_chart.set_title({
+                    'name': 'Daily Performance Trends',
+                    'font': {'size': 14, 'bold': True}
+                })
+                trends_chart.set_x_axis({
+                    'name': 'Date',
+                    'name_font': {'size': 12, 'bold': True},
+                    'num_format': 'dd/mm/yyyy'
+                })
+                trends_chart.set_y_axis({
+                    'name': 'Rate',
+                    'name_font': {'size': 12, 'bold': True}
+                })
+                trends_chart.set_legend({'position': 'top'})
+                trends_chart.set_size({'width': 720, 'height': 480})
+                
+                # Insert the chart
+                chart_sheet.insert_chart('B86', trends_chart)
+                
+                print(f"\nReport generated successfully and exported to: {output_path}")
+                
+        except Exception as e:
+            print(f"\nError exporting to Excel: {str(e)}")
+            print("Please make sure you have xlsxwriter installed:")
+            print("pip install xlsxwriter")
+            raise
 
 def main():
     try:
@@ -440,10 +853,26 @@ def main():
         print(f"Average ROAS: {report['overview']['average_roas']:.2f}")
         print(f"Average ACOS: {report['overview']['average_acos']:.2f}")
         
-        # Export to Excel for dashboard creation
-        output_path = analyzer.project_root / 'reports' / 'campaign_analysis.xlsx'
-        analyzer.export_to_excel(output_path)
-        print(f"\nReport generated successfully and exported to: {output_path}")
+        # Create reports directory if it doesn't exist
+        reports_dir = analyzer.project_root / 'reports'
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_path = reports_dir / f'campaign_analysis_{timestamp}.xlsx'
+        
+        # Try to export to Excel
+        try:
+            analyzer.export_to_excel(output_path)
+            print(f"\nReport generated successfully and exported to: {output_path}")
+        except PermissionError:
+            print(f"\nError: Could not write to {output_path}")
+            print("Please make sure the file is not open in Excel and you have write permissions.")
+            print("Try closing any open Excel files and running the script again.")
+            return 1
+        except Exception as e:
+            print(f"\nError exporting to Excel: {e}")
+            return 1
         
     except Exception as e:
         print(f"Error running analysis: {e}")
